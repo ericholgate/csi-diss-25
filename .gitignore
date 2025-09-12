@@ -69,3 +69,9 @@ CLAUDE.md
 scratch/
 validate_repository.py
 RESTORATION_REPORT.md
+
+# Repository restoration and setup utilities
+verify_restoration.py
+restore_repository.py
+GIT_SETUP_GUIDE.md
+.claude/
