@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mkdir:*)",
+      "Read(//Users/eholgate/research/**)",
+      "Bash(python:*)",
+      "Bash(chmod:*)",
+      "Read(//Users/eholgate/Desktop/csi-diss-25_PARTIAL_COPY/**)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
