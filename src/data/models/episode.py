@@ -9,8 +9,8 @@ import random
 from dataclasses import dataclass
 from typing import List, Set, Dict, Any
 from collections import Counter
-from .character import Character
-from .sentence import Sentence
+from data.models.character import Character
+from data.models.sentence import Sentence
 
 
 @dataclass

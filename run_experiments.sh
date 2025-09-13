@@ -52,26 +52,62 @@ run_experiment() {
     tmux send-keys -t "$session_name" "source venv/bin/activate" Enter
     tmux send-keys -t "$session_name" "export PYTHONPATH=$(pwd)/src:$PYTHONPATH" Enter
     
+    # Small delay to ensure commands execute
+    sleep 1
+    
+    # Verify environment is working
+    tmux send-keys -t "$session_name" "which python" Enter
+    tmux send-keys -t "$session_name" "python --version" Enter
+    tmux send-keys -t "$session_name" "echo \"Python path: \$PYTHONPATH\"" Enter
+    
+    # Wait a moment for environment verification
+    sleep 2
+    
     # Create the Python script for this experiment
     local script_content="
 import sys
 import os
+print(f'Python executable: {sys.executable}')
+print(f'Python version: {sys.version}')
+print(f'Current working directory: {os.getcwd()}')
+
 # Set up Python path for absolute imports
 project_root = os.getcwd()
 src_path = os.path.join(project_root, 'src')
 if src_path not in sys.path:
     sys.path.insert(0, src_path)
 
+print(f'Python path: {sys.path[:3]}...')  # Show first few entries
+
 # Change to project root directory 
 os.chdir(project_root)
 
-from pathlib import Path
-from data.dataset import DidISayThisDataset
-from model.architecture import DidISayThisModel, DidISayThisConfig
-from model.trainer import TrainingConfig
-from model.experiment import ExperimentManager
-import torch
-import time
+try:
+    print('Importing modules...')
+    from pathlib import Path
+    print('✓ pathlib imported')
+    
+    from data.dataset import DidISayThisDataset
+    print('✓ data.dataset imported')
+    
+    from model.architecture import DidISayThisModel, DidISayThisConfig
+    print('✓ model.architecture imported')
+    
+    from model.trainer import TrainingConfig
+    print('✓ model.trainer imported')
+    
+    from model.experiment import ExperimentManager
+    print('✓ model.experiment imported')
+    
+    import torch
+    print('✓ torch imported')
+    
+    import time
+    print('✓ All imports successful!')
+    
+except ImportError as e:
+    print(f'❌ Import failed: {e}')
+    sys.exit(1)
 
 print('=== Experiment: $exp_name ===')
 print('Configuration:')

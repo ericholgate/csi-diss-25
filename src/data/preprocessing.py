@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import List, Dict, Tuple, Any, Optional
 from collections import defaultdict, Counter
 
-from .models import Character, Sentence, Episode
+from data.models import Character, Sentence, Episode
 
 logger = logging.getLogger(__name__)
 

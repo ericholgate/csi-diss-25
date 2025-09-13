@@ -16,9 +16,9 @@ from dataclasses import asdict
 
 import torch
 
-from .trainer import DidISayThisTrainer as Trainer, TrainingConfig
-from .architecture import DidISayThisModel
-from ..data.dataset import DidISayThisDataset
+from model.trainer import DidISayThisTrainer as Trainer, TrainingConfig
+from model.architecture import DidISayThisModel
+from data.dataset import DidISayThisDataset
 
 logger = logging.getLogger(__name__)
 

@@ -18,8 +18,8 @@ import torch
 from torch.utils.data import Dataset, DataLoader
 from transformers import AutoTokenizer
 
-from .models import Episode, Character, Sentence
-from .preprocessing import load_csi_data_complete
+from data.models import Episode, Character, Sentence
+from data.preprocessing import load_csi_data_complete
 
 logger = logging.getLogger(__name__)
 

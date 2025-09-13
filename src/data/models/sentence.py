@@ -7,7 +7,7 @@ including gold labels and timing information.
 
 from dataclasses import dataclass
 from typing import Dict, Any, Optional
-from .character import Character
+from data.models.character import Character
 
 
 @dataclass
