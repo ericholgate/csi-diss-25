@@ -71,7 +71,7 @@ class DidISayThisDataset(Dataset):
         self.include_mentioned_characters = include_mentioned_characters
         self.max_mentioned_characters = max_mentioned_characters
         
-        self._seed_used = seed
+        self.seed = seed
         
         # Store killer reveal holdout parameters for comprehensive metadata
         self._holdout_killer_reveal = _holdout_killer_reveal
@@ -383,7 +383,7 @@ class DidISayThisDataset(Dataset):
                 'max_length': self.max_length,
                 'include_mentioned_characters': self.include_mentioned_characters,
                 'max_mentioned_characters': self.max_mentioned_characters,
-                'seed_used': self._seed_used,
+                'seed_used': self.seed,
                 'tokenizer_name': getattr(self.tokenizer, 'name_or_path', 'unknown'),
                 
                 # Killer reveal holdout configuration
