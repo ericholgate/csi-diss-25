@@ -48,6 +48,26 @@ get_experiment_status() {
     if [ -d "$exp_dir" ]; then
         if [ -f "$exp_dir/final_results.json" ]; then
             echo "COMPLETE"
+        elif [ -f "$exp_dir/sequential_cv_progress.json" ]; then
+            # Check sequential CV progress
+            local progress_file="$exp_dir/sequential_cv_progress.json"
+            local status=$(python3 -c "
+import json
+try:
+    with open('$progress_file') as f:
+        data = json.load(f)
+    completed = data.get('completed_folds', 0)
+    total = data.get('total_folds', 5)
+    if data.get('status') == 'completed':
+        print('COMPLETE')
+    elif completed > 0:
+        print(f'CV_{completed}/{total}')
+    else:
+        print('CV_STARTING')
+except:
+    print('IN_PROGRESS')
+" 2>/dev/null)
+            echo "${status:-IN_PROGRESS}"
         elif [ -f "$exp_dir/experiment_config.json" ]; then
             echo "IN_PROGRESS"
         else
@@ -151,7 +171,13 @@ if [ -d "experiment_logs" ]; then
 fi
 
 if [ "$QUICK_MODE" = true ]; then
-    echo "CSI Phase 1 Status: $completed_experiments/4 complete, $running_sessions active, $failed_experiments failed"
+    # Count CV experiments in progress
+    cv_in_progress=0
+    if [ -d "experiments" ]; then
+        cv_in_progress=$(find experiments/ -name "sequential_cv_progress.json" -exec grep -l '"status": "in_progress"' {} \; 2>/dev/null | wc -l)
+    fi
+    
+    echo "CSI Phase 1 Status: $completed_experiments/4 complete, $running_sessions active, $cv_in_progress CV in-progress, $failed_experiments failed"
 else
     echo "Active tmux sessions: $running_sessions"
     echo "Completed experiments: $completed_experiments/$total_experiments (Phase 1)"
@@ -250,6 +276,8 @@ for i in {0..3}; do
         "STARTED") exp_display="🟡START" ;;
         "FAILED") exp_display="❌FAIL" ;;
         "NOT_STARTED") exp_display="⏸️WAIT" ;;
+        "CV_STARTING") exp_display="🔄CV_0/5" ;;
+        CV_*) exp_display="🔄$exp_status" ;;
     esac
     
     # Format progress percentage
@@ -262,9 +290,15 @@ for i in {0..3}; do
     printf "%-23s %-12s %-12s %-8s %-8s %-8s %-8s " "$exp_name" "$session_display" "$exp_display" "$progress_display" "$current_epoch" "$eta" "$elapsed"
     
     # Show recent activity inline for active experiments
-    if [[ "$session_status" = "RUNNING" && "$exp_status" = "IN_PROGRESS" ]]; then
-        recent_line=$(grep -E "(Step [0-9]+/|Loss:|Accuracy:)" "$log_file" 2>/dev/null | tail -1 | cut -c1-40)
-        echo "$recent_line"
+    if [[ "$session_status" = "RUNNING" && ("$exp_status" = "IN_PROGRESS" || "$exp_status" =~ ^CV_) ]]; then
+        # For sequential CV, show fold progress
+        if [[ "$exp_status" =~ ^CV_ ]]; then
+            recent_line=$(grep -E "(🔄 Starting fold|✅ Created episode subset|❌ Fold.*failed)" "$log_file" 2>/dev/null | tail -1 | cut -c1-50)
+            echo "$recent_line"
+        else
+            recent_line=$(grep -E "(Step [0-9]+/|Loss:|Accuracy:)" "$log_file" 2>/dev/null | tail -1 | cut -c1-40)
+            echo "$recent_line"
+        fi
     else
         echo
     fi

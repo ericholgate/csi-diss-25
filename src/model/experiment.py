@@ -246,7 +246,10 @@ class ExperimentManager:
                 logger.info(f"Skipping already completed fold {fold_idx}")
                 continue
                 
+            print(f"🔄 Starting fold {fold_idx + 1}/{len(cv_splits)}")
+            print(f"   Train episodes: {len(train_episodes)}, Test episodes: {len(test_episodes)}")
             logger.info(f"Starting fold {fold_idx + 1}/{len(cv_splits)}")
+            logger.info(f"Train episodes: {train_episodes}, Test episodes: {test_episodes}")
             
             try:
                 fold_result = self._run_sequential_fold(
@@ -266,9 +269,14 @@ class ExperimentManager:
                 logger.info(f"Fold {fold_idx} completed and progress saved")
                 
             except Exception as e:
+                import traceback
+                error_traceback = traceback.format_exc()
                 logger.error(f"Fold {fold_idx} failed: {e}")
-                fold_results.append({'fold': fold_idx, 'error': str(e)})
-                sequential_results.append({'fold': fold_idx, 'error': str(e)})
+                logger.error(f"Full traceback: {error_traceback}")
+                print(f"❌ Fold {fold_idx} failed with error: {e}")
+                print(f"Traceback: {error_traceback}")
+                fold_results.append({'fold': fold_idx, 'error': str(e), 'traceback': error_traceback})
+                sequential_results.append({'fold': fold_idx, 'error': str(e), 'traceback': error_traceback})
                 
                 # Save progress even for failed folds  
                 self._save_sequential_cv_progress(fold_idx, len(cv_splits), sequential_results, 'in_progress')
@@ -386,9 +394,18 @@ class ExperimentManager:
     def _train_fold_embeddings(self, fold_idx: int, episodes: List[str], dataset: DidISayThisDataset,
                               model_template: DidISayThisModel, fold_dir: Path, phase: str) -> tuple:
         """Train character embeddings on given episodes."""
+        print(f"🔧 Training fold {fold_idx} embeddings ({phase})")
+        print(f"   Episodes: {episodes}")
+        print(f"   Total episodes in dataset: {len(dataset.episodes)}")
+        
         # Create episode subset
-        episode_dataset = dataset.create_episode_subset(episodes)
-        logger.info(f"Fold {fold_idx} {phase}: Created dataset with {len(episode_dataset)} samples")
+        try:
+            episode_dataset = dataset.create_episode_subset(episodes)
+            print(f"✅ Created episode subset with {len(episode_dataset)} samples")
+            logger.info(f"Fold {fold_idx} {phase}: Created dataset with {len(episode_dataset)} samples")
+        except Exception as e:
+            print(f"❌ Failed to create episode subset: {e}")
+            raise
         
         # Create fresh model
         import copy
