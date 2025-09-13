@@ -1,14 +1,22 @@
 #!/bin/bash
 
-# Monitor CSI Character Embedding Experiments
+# Monitor CSI Character Embedding Experiments  
 # Companion script to check experiment progress and results
 #
-# Usage: bash monitor_experiments.sh
+# Usage: bash monitor_experiments.sh [quick]
 
 set -e
 
-echo "=== CSI Experiment Monitor ==="
-echo
+# Check if quick mode requested
+QUICK_MODE=false
+if [ "$1" = "quick" ]; then
+    QUICK_MODE=true
+fi
+
+if [ "$QUICK_MODE" = false ]; then
+    echo "=== CSI Experiment Monitor ==="
+    echo
+fi
 
 # Function to check if tmux session exists
 session_exists() {
@@ -113,17 +121,19 @@ get_last_log_lines() {
 }
 
 # Show overall status
-echo "📊 EXPERIMENT OVERVIEW"
-echo "======================"
-echo
+if [ "$QUICK_MODE" = false ]; then
+    echo "📊 EXPERIMENT OVERVIEW"
+    echo "======================"
+    echo
+fi
 
-# Count sessions and experiments
+# Count sessions and experiments  
 running_sessions=0
 completed_experiments=0
 failed_experiments=0
-total_experiments=16
+total_experiments=4
 
-for i in {1..16}; do
+for i in {1..4}; do
     session_name=$(printf "exp%02d" $i)
     session_status=$(get_session_status "$session_name")
     if [ "$session_status" = "RUNNING" ]; then
@@ -140,9 +150,13 @@ if [ -d "experiment_logs" ]; then
     failed_experiments=$(grep -l "EXPERIMENT FAILED" experiment_logs/*.log 2>/dev/null | wc -l || echo 0)
 fi
 
-echo "Active tmux sessions: $running_sessions"
-echo "Completed experiments: $completed_experiments/$total_experiments"
-echo "Failed experiments: $failed_experiments"
+if [ "$QUICK_MODE" = true ]; then
+    echo "CSI Phase 1 Status: $completed_experiments/4 complete, $running_sessions active, $failed_experiments failed"
+else
+    echo "Active tmux sessions: $running_sessions"
+    echo "Completed experiments: $completed_experiments/$total_experiments (Phase 1)"
+    echo "Failed experiments: $failed_experiments"
+fi
 
 # Calculate overall progress
 if [ -d "experiment_logs" ]; then
@@ -161,10 +175,15 @@ if [ -d "experiment_logs" ]; then
         fi
     done
     
-    if [ "$progress_count" -gt 0 ]; then
+    if [ "$progress_count" -gt 0 ] && [ "$QUICK_MODE" = false ]; then
         avg_progress=$((total_progress / progress_count))
         echo "Average training progress: ${avg_progress}%"
     fi
+fi
+
+# Exit early in quick mode
+if [ "$QUICK_MODE" = true ]; then
+    exit 0
 fi
 
 echo
@@ -175,27 +194,15 @@ echo "=================="
 printf "%-23s %-12s %-12s %-8s %-8s %-8s %-8s %s\n" "EXPERIMENT" "TMUX" "STATUS" "PROGRESS" "EPOCH" "ETA" "ELAPSED" "RECENT_ACTIVITY"
 echo "$(printf '%*s' 130 '' | tr ' ' '-')"
 
-# Define experiment names (same as in run_experiments.sh)
+# Define experiment names (Phase 1 - same as in run_experiments.sh)
 declare -a EXP_NAMES=(
-    "ep_iso_1ep_proj_s42"
-    "ep_iso_1ep_proj_s123"  
-    "ep_iso_1ep_noproj_s42"
-    "ep_iso_1ep_noproj_s123"
-    "ep_iso_5ep_proj_s42"
-    "ep_iso_5ep_proj_s123"
-    "ep_iso_5ep_noproj_s42"
-    "ep_iso_5ep_noproj_s123"
-    "cross_ep_1ep_proj_s42"
-    "cross_ep_1ep_proj_s123"
-    "cross_ep_1ep_noproj_s42"
-    "cross_ep_1ep_noproj_s123"
-    "cross_ep_5ep_proj_s42"
-    "cross_ep_5ep_proj_s123"
-    "cross_ep_5ep_noproj_s42"
-    "cross_ep_5ep_noproj_s123"
+    "seq_cv_ep_iso_s42"
+    "seq_cv_cross_ep_s42"
+    "parallel_cv_ep_iso_s42" 
+    "parallel_cv_cross_ep_s42"
 )
 
-for i in {0..15}; do
+for i in {0..3}; do
     session_name=$(printf "exp%02d" $((i+1)))
     exp_name=${EXP_NAMES[i]}
     session_status=$(get_session_status "$session_name")
@@ -290,9 +297,9 @@ echo "Emergency cleanup (if needed):"
 echo "  tmux kill-session -t exp01            # Kill specific session"
 echo "  pkill -f python                       # Kill all Python processes (⚠️ CAREFUL!)"
 echo
-echo "💡 VM LEASE MANAGEMENT:"
-echo "  - Single-epoch experiments: ~1-2 hours (safe for 8h lease)"
-echo "  - Multi-epoch experiments: ~4-6 hours (may need resuming)"
+echo "💡 VM LEASE MANAGEMENT (Phase 1):"
+echo "  - Sequential CV experiments: ~3-6 hours (may need resuming)"
+echo "  - Parallel CV experiments: ~30-60 minutes (safe for 8h lease)"
 echo "  - Use 'bash resume_experiments.sh' after VM restart"
 
 # Show disk usage and persistence info

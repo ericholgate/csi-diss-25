@@ -25,7 +25,7 @@ fi
 
 # Kill any existing experimental tmux sessions first
 echo "Cleaning up any existing tmux sessions..."
-for i in {1..16}; do
+for i in {1..4}; do
     session_name=$(printf "exp%02d" $i)
     tmux kill-session -t "$session_name" 2>/dev/null || true
 done
@@ -36,23 +36,13 @@ declare -a COMPLETED_EXPERIMENTS=()
 declare -a NOT_STARTED_EXPERIMENTS=()
 
 # Define experiment configurations (same as run_experiments.sh)
+# Phase 1: Sequential CV Validation (4 experiments)
 declare -a ALL_EXPERIMENTS=(
-    "exp01|ep_iso_1ep_proj_s42|episode-isolated|False|0.1|1|True|512|42|16|1e-4"
-    "exp02|ep_iso_1ep_proj_s123|episode-isolated|False|0.1|1|True|512|123|16|1e-4"
-    "exp03|ep_iso_1ep_noproj_s42|episode-isolated|False|0.1|1|False|512|42|16|1e-4"
-    "exp04|ep_iso_1ep_noproj_s123|episode-isolated|False|0.1|1|False|512|123|16|1e-4"
-    "exp05|ep_iso_5ep_proj_s42|episode-isolated|True|0.1|5|True|512|42|16|1e-4"
-    "exp06|ep_iso_5ep_proj_s123|episode-isolated|True|0.1|5|True|512|123|16|1e-4"
-    "exp07|ep_iso_5ep_noproj_s42|episode-isolated|True|0.1|5|False|512|42|16|1e-4"
-    "exp08|ep_iso_5ep_noproj_s123|episode-isolated|True|0.1|5|False|512|123|16|1e-4"
-    "exp09|cross_ep_1ep_proj_s42|cross-episode|False|0.1|1|True|512|42|16|1e-4"
-    "exp10|cross_ep_1ep_proj_s123|cross-episode|False|0.1|1|True|512|123|16|1e-4"
-    "exp11|cross_ep_1ep_noproj_s42|cross-episode|False|0.1|1|False|512|42|16|1e-4"
-    "exp12|cross_ep_1ep_noproj_s123|cross-episode|False|0.1|1|False|512|123|16|1e-4"
-    "exp13|cross_ep_5ep_proj_s42|cross-episode|True|0.1|5|True|512|42|16|1e-4"
-    "exp14|cross_ep_5ep_proj_s123|cross-episode|True|0.1|5|True|512|123|16|1e-4"
-    "exp15|cross_ep_5ep_noproj_s42|cross-episode|True|0.1|5|False|512|42|16|1e-4"
-    "exp16|cross_ep_5ep_noproj_s123|cross-episode|True|0.1|5|False|512|123|16|1e-4"
+    # Format: session_name|exp_name|character_mode|num_epochs|seed|batch_size|learning_rate|sequential_cv
+    "exp01|seq_cv_ep_iso_s42|episode-isolated|1|42|16|1e-4|true"
+    "exp02|seq_cv_cross_ep_s42|cross-episode|1|42|16|1e-4|true"
+    "exp03|parallel_cv_ep_iso_s42|episode-isolated|1|42|16|1e-4|false"
+    "exp04|parallel_cv_cross_ep_s42|cross-episode|1|42|16|1e-4|false"
 )
 
 echo "🔍 Analyzing experiment status..."
@@ -100,9 +90,9 @@ done
 echo
 echo "📊 EXPERIMENT STATUS SUMMARY"
 echo "============================="
-echo "Completed: ${#COMPLETED_EXPERIMENTS[@]}/16"
-echo "Resumable: ${#RESUMABLE_EXPERIMENTS[@]}/16"
-echo "Not Started: ${#NOT_STARTED_EXPERIMENTS[@]}/16"
+echo "Completed: ${#COMPLETED_EXPERIMENTS[@]}/4"
+echo "Resumable: ${#RESUMABLE_EXPERIMENTS[@]}/4"
+echo "Not Started: ${#NOT_STARTED_EXPERIMENTS[@]}/4"
 
 # Combine resumable and not-started for execution
 EXPERIMENTS_TO_RUN=("${RESUMABLE_EXPERIMENTS[@]}" "${NOT_STARTED_EXPERIMENTS[@]}")
@@ -147,18 +137,15 @@ for exp in "${EXPERIMENTS_TO_RUN[@]}"; do
     session_name=${PARAMS[0]}
     exp_name=${PARAMS[1]}
     character_mode=${PARAMS[2]}
-    holdout_killer=${PARAMS[3]}
-    holdout_pct=${PARAMS[4]}
-    num_epochs=${PARAMS[5]}
-    use_projection=${PARAMS[6]}
-    projection_dim=${PARAMS[7]}
-    seed=${PARAMS[8]}
-    batch_size=${PARAMS[9]}
-    learning_rate=${PARAMS[10]}
+    num_epochs=${PARAMS[3]}
+    seed=${PARAMS[4]}
+    batch_size=${PARAMS[5]}
+    learning_rate=${PARAMS[6]}
+    sequential_cv=${PARAMS[7]}
     
-    # Add delay for 5-epoch experiments to spread CPU load
-    if [ "$num_epochs" -eq 5 ]; then
-        delay=$((delay + 10))  # 10 second additional delay for multi-epoch
+    # Add delay for sequential CV experiments to spread CPU load
+    if [ "$sequential_cv" = "true" ]; then
+        delay=$((delay + 5))  # Extra delay for sequential CV (more intensive)
     fi
     
     if [ "$delay" -gt 0 ]; then
@@ -166,9 +153,8 @@ for exp in "${EXPERIMENTS_TO_RUN[@]}"; do
         sleep $delay
     fi
     
-    run_experiment "$session_name" "$exp_name" "$character_mode" "$holdout_killer" \
-                  "$holdout_pct" "$num_epochs" "$use_projection" "$projection_dim" \
-                  "$seed" "$batch_size" "$learning_rate"
+    run_experiment "$session_name" "$exp_name" "$character_mode" "$num_epochs" \
+                  "$seed" "$batch_size" "$learning_rate" "$sequential_cv"
     
     sleep 2  # Base delay between experiments
 done
@@ -189,9 +175,9 @@ if [ ${#RESUMABLE_EXPERIMENTS[@]} -gt 0 ]; then
     echo "  - Resumable experiments: ~1-3 hours (depends on checkpoint progress)"
 fi
 if [ ${#NOT_STARTED_EXPERIMENTS[@]} -gt 0 ]; then
-    single_epoch_count=$(printf '%s\n' "${NOT_STARTED_EXPERIMENTS[@]}" | grep -c "|1|" || echo 0)
-    multi_epoch_count=$(printf '%s\n' "${NOT_STARTED_EXPERIMENTS[@]}" | grep -c "|5|" || echo 0)
+    sequential_count=$(printf '%s\n' "${NOT_STARTED_EXPERIMENTS[@]}" | grep -c "|true" || echo 0)
+    parallel_count=$(printf '%s\n' "${NOT_STARTED_EXPERIMENTS[@]}" | grep -c "|false" || echo 0)
     
-    echo "  - New single-epoch experiments ($single_epoch_count): ~1-2 hours each"
-    echo "  - New multi-epoch experiments ($multi_epoch_count): ~4-6 hours each"
+    echo "  - New sequential CV experiments ($sequential_count): ~3-6 hours each (5 fold training)"
+    echo "  - New parallel CV experiments ($parallel_count): ~30-60 minutes each"
 fi
