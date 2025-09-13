@@ -5,7 +5,8 @@
       "Read(//Users/eholgate/research/**)",
       "Bash(python:*)",
       "Bash(chmod:*)",
-      "Read(//Users/eholgate/Desktop/csi-diss-25_PARTIAL_COPY/**)"
+      "Read(//Users/eholgate/Desktop/csi-diss-25_PARTIAL_COPY/**)",
+      "Bash(grep:*)"
     ],
     "deny": [],
     "ask": []

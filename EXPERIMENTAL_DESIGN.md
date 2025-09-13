@@ -2,23 +2,60 @@
 
 ## Overview
 
-This document describes the experimental configurations for training character embeddings using the "Did I Say This" proxy task on CSI television episode transcripts.
+This document describes the experimental configurations for training character embeddings using the "Did I Say This" proxy task on CSI television episode transcripts with **Sequential Cross-Validation Training**.
 
 ## Research Questions
 
-1. **Character Mode Impact**: How do episode-isolated vs cross-episode character representations affect embedding quality?
-2. **Killer Reveal Contamination**: Does holdout of episode endings prevent learning killer identity patterns?
-3. **Architecture Impact**: Do projection layers improve character embedding learning vs direct concatenation?
-4. **Training Duration**: How does single-epoch vs multi-epoch training affect performance?
+1. **Training Paradigm**: Does sequential CV training (theoretically superior) produce different results than parallel CV training?
+2. **Character Mode Impact**: How do episode-isolated vs cross-episode character representations affect killer prediction generalization?
+3. **Killer Prediction Evaluation**: Can character embeddings learned through "Did I Say This" generalize to predict killer archetypes across unseen episodes?
+4. **Architecture Impact**: Do projection layers improve character embedding learning vs direct concatenation?
+5. **Training Duration**: How does single-epoch vs multi-epoch training affect performance?
 
-## Experimental Design Matrix
+## Two-Phase Experimental Approach
+
+### Phase 1: Sequential CV Validation (4 Experiments)
+
+**Goal**: Validate that sequential CV training works and compare with parallel CV approach.
+
+**Configuration Space**:
+- **Training Paradigms**: 2 (sequential CV, parallel CV)
+- **Character Modes**: 2 (episode-isolated, cross-episode)
+- **Random Seed**: 1 (42 - for consistency)
+- **Total Phase 1 Experiments**: 2 × 2 × 1 = **4 experiments**
+
+| ID | Name | Training Paradigm | Character Mode | Killer Prediction | Seed | Description |
+|----|------|------------------|----------------|-------------------|------|-------------|
+| 01 | `seq_cv_ep_iso_s42` | Sequential CV | episode-isolated | Yes (200 steps) | 42 | Test sequential CV with episode-isolated chars |
+| 02 | `seq_cv_cross_ep_s42` | Sequential CV | cross-episode | Yes (200 steps) | 42 | Test sequential CV with cross-episode chars |
+| 03 | `parallel_cv_ep_iso_s42` | Parallel CV | episode-isolated | Yes (200 steps) | 42 | Compare with parallel CV approach |
+| 04 | `parallel_cv_cross_ep_s42` | Parallel CV | cross-episode | Yes (200 steps) | 42 | Compare with parallel CV approach |
+
+**Expected Outcomes Phase 1**:
+- Sequential CV should show **true generalization** (lower but more meaningful accuracy)
+- Parallel CV may show **correlation artifacts** (higher but potentially misleading accuracy)
+- Cross-episode mode should consolidate character representations better
+
+### Phase 2: Full Experimental Matrix (12 Additional Experiments)
+
+**Goal**: Once Phase 1 validates sequential CV works, run comprehensive comparison using **Sequential CV Training** as primary method.
+
+**Configuration Space**:
+- **Character Modes**: 2 (episode-isolated, cross-episode)
+- **Training Epochs**: 2 (1 epoch, 5 epochs) 
+- **Architecture Variants**: 2 (with projection, without projection)
+- **Random Seeds**: 2 (42, 123)
+- **Total Phase 2 Experiments**: 2 × 2 × 2 × 2 = **16 experiments**
+
+## Full Experimental Design Matrix (Phase 2)
 
 ### Configuration Space
+- **Training Paradigm**: Sequential CV (default after Phase 1 validation)
 - **Character Modes**: 2 (episode-isolated, cross-episode)
 - **Training Epochs**: 2 (1 epoch, 5 epochs)
 - **Architecture Variants**: 2 (with projection, without projection)  
 - **Random Seeds**: 2 (42, 123)
-- **Total Experiments**: 2 × 2 × 2 × 2 = **16 experiments**
+- **Total Phase 2 Experiments**: 2 × 2 × 2 × 2 = **16 experiments**
 
 ### Experiment Configurations
 

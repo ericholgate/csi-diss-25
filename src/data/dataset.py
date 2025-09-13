@@ -511,3 +511,153 @@ class DidISayThisDataset(Dataset):
         logger.info(f"Vocabulary: {len(dummy_instance.character_to_id)} characters")
         
         return dummy_instance
+
+    def get_killer_cv_splits(self, n_folds: int = 5, seed: int = 42) -> Dict[str, Any]:
+        """
+        Get cross-validation splits for killer prediction evaluation.
+        
+        Args:
+            n_folds: Number of CV folds
+            seed: Random seed for reproducible splits (will also be used for classifier training)
+            
+        Returns:
+            Dictionary containing CV splits and killer label mappings
+        """
+        import random
+        from sklearn.model_selection import KFold
+        
+        # Extract episode-level data
+        episode_data = []
+        episode_killer_labels = {}
+        episode_characters = {}
+        
+        for episode in self.episodes:
+            episode_id = episode.episode_id
+            episode_chars = {}
+            episode_killers = {}
+            
+            # Process all sentences in episode to build character mappings and killer labels
+            for sentence in episode.sentences:
+                char_id = sentence.speaker.get_unique_id(self.character_mode)
+                episode_chars[char_id] = sentence.speaker
+                
+                # Check killer_gold label
+                killer_label = sentence.gold_labels.get('killer_gold')
+                if killer_label and killer_label.upper() in ['Y', 'YES', '1', 'TRUE']:
+                    episode_killers[char_id] = True
+                elif char_id not in episode_killers:  # Don't overwrite positive labels
+                    episode_killers[char_id] = False
+            
+            episode_data.append(episode_id)
+            episode_killer_labels[episode_id] = episode_killers
+            episode_characters[episode_id] = episode_chars
+        
+        # Create CV splits with fixed seed for reproducibility
+        random.seed(seed)
+        episode_indices = list(range(len(episode_data)))
+        random.shuffle(episode_indices)
+        
+        kfold = KFold(n_splits=n_folds, shuffle=False)  # Already shuffled above
+        cv_splits = []
+        
+        for train_idx, test_idx in kfold.split(episode_indices):
+            train_episodes = [episode_data[i] for i in train_idx]
+            test_episodes = [episode_data[i] for i in test_idx]
+            cv_splits.append((train_episodes, test_episodes))
+        
+        # Calculate summary statistics
+        total_killers = sum(
+            sum(1 for is_killer in killers.values() if is_killer) 
+            for killers in episode_killer_labels.values()
+        )
+        total_characters = sum(len(chars) for chars in episode_killer_labels.values())
+        
+        logger.info(f"Created {n_folds}-fold CV splits for killer prediction:")
+        logger.info(f"  {len(episode_data)} episodes, {total_characters} character instances")
+        logger.info(f"  {total_killers} killers ({total_killers/total_characters:.3f} positive rate)")
+        logger.info(f"  Average {len(episode_data)//n_folds:.1f} episodes per fold")
+        
+        return {
+            'splits': cv_splits,
+            'episode_killer_labels': episode_killer_labels,
+            'episode_characters': episode_characters,
+            'character_to_id': self.character_to_id,
+            'classifier_seed': seed,  # Same seed for classifier training
+            'summary_stats': {
+                'n_folds': n_folds,
+                'n_episodes': len(episode_data),
+                'n_character_instances': total_characters,
+                'n_killers': total_killers,
+                'killer_positive_rate': total_killers / total_characters if total_characters > 0 else 0.0,
+                'seed': seed
+            }
+        }
+
+    def get_episode_character_mapping(self) -> Dict[str, Dict[str, Any]]:
+        """
+        Get mapping of episodes to their characters for evaluation purposes.
+        
+        Returns:
+            Dictionary mapping episode_id to character information
+        """
+        mapping = {}
+        
+        for episode in self.episodes:
+            episode_chars = {}
+            
+            for sentence in episode.sentences:
+                char_id = sentence.speaker.get_unique_id(self.character_mode)
+                if char_id not in episode_chars:
+                    episode_chars[char_id] = {
+                        'character': sentence.speaker,
+                        'normalized_name': sentence.speaker.normalized_name,
+                        'sentence_count': 0,
+                        'gold_labels': {'killer': False, 'suspect': False, 'other': False}
+                    }
+                
+                # Update sentence count
+                episode_chars[char_id]['sentence_count'] += 1
+                
+                # Update gold labels (any positive label makes it true)
+                for label_type, key in [('killer_gold', 'killer'), ('suspect_gold', 'suspect'), ('other_gold', 'other')]:
+                    label_value = sentence.gold_labels.get(label_type)
+                    if label_value and label_value.upper() in ['Y', 'YES', '1', 'TRUE']:
+                        episode_chars[char_id]['gold_labels'][key] = True
+            
+            mapping[episode.episode_id] = episode_chars
+        
+        return mapping
+
+    def create_episode_subset(self, episode_ids: List[str]) -> 'DidISayThisDataset':
+        """
+        Create a new dataset containing only specified episodes.
+        
+        Args:
+            episode_ids: List of episode IDs to include
+            
+        Returns:
+            New DidISayThisDataset instance with only specified episodes
+        """
+        # Filter episodes to only include specified ones
+        filtered_episodes = [ep for ep in self.episodes if ep.episode_id in episode_ids]
+        
+        if not filtered_episodes:
+            raise ValueError(f"No episodes found matching IDs: {episode_ids}")
+        
+        logger.info(f"Creating episode subset with {len(filtered_episodes)} episodes from {episode_ids}")
+        
+        # Create new dataset with same configuration but filtered episodes
+        subset_dataset = DidISayThisDataset(
+            episodes=filtered_episodes,
+            character_mode=self.character_mode,
+            negative_ratio=self.negative_ratio,
+            tokenizer_name=self.tokenizer.name_or_path if hasattr(self.tokenizer, 'name_or_path') else 'bert-base-uncased',
+            max_length=self.max_length,
+            include_mentioned_characters=self.include_mentioned_characters,
+            max_mentioned_characters=self.max_mentioned_characters,
+            seed=self.seed,
+            killer_reveal_holdout=self.killer_reveal_holdout,
+            holdout_percentage=self.holdout_percentage
+        )
+        
+        return subset_dataset

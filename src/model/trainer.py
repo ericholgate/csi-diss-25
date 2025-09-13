@@ -8,12 +8,16 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
-from typing import Dict, Any, Optional, Tuple
+from typing import Dict, Any, Optional, Tuple, List
 from dataclasses import dataclass, asdict
 from pathlib import Path
 import logging
 import time
+import json
+import csv
 from tqdm import tqdm
+from collections import defaultdict
+import numpy as np
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +41,18 @@ class TrainingConfig:
     checkpoint_every_n_steps: int = 1000
     log_every_n_steps: int = 100
     eval_every_n_steps: int = 500
+    
+    # Prediction tracking and analysis
+    record_predictions: bool = True  # Record all "Did I Say This" predictions
+    killer_prediction_frequency: int = 200  # Evaluate killer prediction every N steps (~5 times per episode)
+    save_embeddings_every_n_steps: int = 1000  # Save character embeddings for analysis
+    
+    # Killer prediction cross-validation
+    killer_cv_folds: int = 5  # Number of CV folds for killer prediction
+    killer_cv_seed: int = 42  # Seed for reproducible episode splits
+    
+    # Training paradigm selection
+    sequential_cv_training: bool = True  # Use sequential CV training (theoretically superior)
     
     # Killer reveal holdout (to prevent contamination during multi-epoch training)
     holdout_killer_reveal: bool = False  # Enable killer reveal holdout
@@ -64,12 +80,13 @@ class DidISayThisTrainer:
     - Comprehensive metrics tracking
     """
     
-    def __init__(self, model, train_dataset, val_dataset=None, config=None):
+    def __init__(self, model, train_dataset, val_dataset=None, config=None, experiment_manager=None):
         """Initialize trainer with model, datasets, and configuration."""
         self.model = model
         self.train_dataset = train_dataset
         self.val_dataset = val_dataset
         self.config = config or TrainingConfig()
+        self.experiment_manager = experiment_manager
         
         # Set up device
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -99,6 +116,9 @@ class DidISayThisTrainer:
         self.current_step = 0
         self.best_val_loss = float('inf')
         self.training_history = []
+        
+        # Prediction tracking
+        self.prediction_log = [] if self.config.record_predictions else None
         
         logger.info(f"Trainer initialized for {self.config.num_epochs} epochs")
         logger.info(f"Device: {self.device}")
@@ -225,6 +245,10 @@ class DidISayThisTrainer:
             if self.scheduler:
                 self.scheduler.step()
             
+            # Record individual predictions
+            if self.prediction_log is not None:
+                self._record_prediction(batch_idx, batch, logits, labels, loss)
+            
             # Update metrics
             total_loss += loss.item()
             predictions = torch.sigmoid(logits.squeeze()) > 0.5
@@ -252,6 +276,14 @@ class DidISayThisTrainer:
                 self._save_checkpoint(checkpoint_path, {'epoch': self.current_epoch, 'step': self.current_step})
                 logger.info(f"Checkpoint saved: {checkpoint_path}")
             
+            # Killer prediction evaluation
+            if (self.experiment_manager and self.config.killer_prediction_frequency > 0 and 
+                self.current_step % self.config.killer_prediction_frequency == 0):
+                current_embeddings = self.model.character_embeddings.weight.detach()
+                killer_results = self.experiment_manager.evaluate_killer_prediction(
+                    current_embeddings, self.current_step, self.current_epoch
+                )
+                
             # Validation during training
             if (self.val_dataset and self.current_step % self.config.eval_every_n_steps == 0):
                 val_metrics = self._validate_step()
@@ -353,3 +385,40 @@ class DidISayThisTrainer:
         
         logger.info(f"Checkpoint loaded from {path}")
         logger.info(f"Resumed at epoch {self.current_epoch}, step {self.current_step}")
+
+    def _record_prediction(self, batch_idx: int, batch: Dict[str, torch.Tensor], 
+                          logits: torch.Tensor, labels: torch.Tensor, loss: torch.Tensor) -> None:
+        """Record individual predictions for Did I Say This task."""
+        # Convert to probabilities
+        probs = torch.sigmoid(logits.squeeze()).detach().cpu().numpy()
+        predictions = (probs > 0.5).astype(int)
+        labels_np = labels.detach().cpu().numpy()
+        
+        # Record each example in the batch
+        for i in range(len(labels)):
+            self.prediction_log.append({
+                'step': self.current_step,
+                'epoch': self.current_epoch,
+                'batch_idx': batch_idx,
+                'pair_id': batch['pair_id'][i].item() if 'pair_id' in batch else -1,
+                'character_id': batch['character_id'][i].item(),
+                'predicted_prob': float(probs[i]),
+                'predicted_class': int(predictions[i]),
+                'true_label': int(labels_np[i]),
+                'loss': float(loss.item()),
+                'temporal_position': batch['temporal_position'][i].item() if 'temporal_position' in batch else -1,
+                'example_type': batch.get('metadata', [{}] * len(labels))[i].get('example_type', 'unknown'),
+            })
+
+    def save_prediction_logs(self, experiment_dir: Path) -> None:
+        """Save prediction logs to CSV files."""
+        if not experiment_dir or not self.prediction_log:
+            return
+            
+        import pandas as pd
+        
+        # Save "Did I Say This" predictions
+        predictions_df = pd.DataFrame(self.prediction_log)
+        predictions_path = experiment_dir / 'did_i_say_this_predictions.csv'
+        predictions_df.to_csv(predictions_path, index=False)
+        logger.info(f"Saved {len(self.prediction_log)} predictions to {predictions_path}")
