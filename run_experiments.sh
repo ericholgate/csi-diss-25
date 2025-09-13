@@ -171,7 +171,7 @@ try:
         killer_cv_seed=42,
         
         # Sequential vs parallel CV training
-        sequential_cv_training=($sequential_cv == 'true')
+        sequential_cv_training=('$sequential_cv' == 'true')
     )
     
     # Check if experiment already exists
