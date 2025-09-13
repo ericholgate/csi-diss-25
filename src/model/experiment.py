@@ -418,7 +418,17 @@ class ExperimentManager:
             return fold_result
             
         except Exception as e:
+            import traceback
+            error_traceback = traceback.format_exc()
             logger.error(f"Fold {fold_idx} failed: {e}")
+            logger.error(f"Full traceback: {error_traceback}")
+            print(f"🔍 DETAILED ERROR DEBUG for Fold {fold_idx}:")
+            print(f"    Error: {e}")
+            print(f"    Error type: {type(e).__name__}")
+            if hasattr(e, 'args') and e.args:
+                print(f"    Error args: {e.args}")
+            print(f"    Full traceback:")
+            print(error_traceback)
             return {'fold': fold_idx, 'error': str(e)}
     
     def _train_fold_embeddings(self, fold_idx: int, episodes: List[str], dataset: DidISayThisDataset,
