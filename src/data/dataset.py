@@ -656,8 +656,8 @@ class DidISayThisDataset(Dataset):
             include_mentioned_characters=self.include_mentioned_characters,
             max_mentioned_characters=self.max_mentioned_characters,
             seed=self.seed,
-            killer_reveal_holdout=self.killer_reveal_holdout,
-            holdout_percentage=self.holdout_percentage
+            _holdout_killer_reveal=self._holdout_killer_reveal,
+            _killer_reveal_holdout_percentage=self._killer_reveal_holdout_percentage
         )
         
         return subset_dataset

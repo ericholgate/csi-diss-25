@@ -139,8 +139,8 @@ class ExperimentManager:
             'num_episodes': len(dataset.episodes),
             'total_samples': len(dataset),
             'character_mode': dataset.character_mode,
-            'killer_reveal_holdout': dataset.killer_reveal_holdout,
-            'holdout_percentage': dataset.holdout_percentage
+            'holdout_killer_reveal': dataset._holdout_killer_reveal,
+            'killer_reveal_holdout_percentage': dataset._killer_reveal_holdout_percentage
         }
         self.metadata['status'] = 'running'
         self.save_metadata()
