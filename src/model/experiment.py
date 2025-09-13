@@ -228,13 +228,34 @@ class ExperimentManager:
             with open(progress_file, 'r') as f:
                 progress_data = json.load(f)
             
+            print(f"📊 Progress data status: {progress_data.get('status', 'unknown')}")
+            print(f"📊 Progress data completed_folds: {progress_data.get('completed_folds', 0)}")
+            print(f"📊 Total fold results: {len(progress_data.get('fold_results', []))}")
+            
             if progress_data.get('status') == 'completed':
                 logger.info("Sequential CV already completed!")
                 return progress_data.get('final_results', {})
             
             # Resume from where we left off
             completed_folds = progress_data.get('completed_folds', 0)
-            if completed_folds > 0:
+            total_folds = len(cv_splits)
+            
+            # If all folds are completed but status isn't 'completed', complete the experiment
+            if completed_folds >= total_folds:
+                print("🎯 All folds appear completed, attempting to finalize results...")
+                sequential_results = progress_data.get('fold_results', [])
+                fold_results = [r for r in sequential_results if 'error' not in r]
+                
+                if fold_results:
+                    print(f"✅ Found {len(fold_results)} successful folds, finalizing...")
+                    # Skip the fold loop and go directly to result aggregation
+                    start_fold = total_folds  # This will skip all folds
+                else:
+                    print("❌ No successful fold results found, will restart all folds")
+                    start_fold = 0
+                    fold_results = []
+                    sequential_results = []
+            elif completed_folds > 0:
                 logger.info(f"Resuming sequential CV from fold {completed_folds}")
                 start_fold = completed_folds
                 sequential_results = progress_data.get('fold_results', [])
@@ -284,9 +305,18 @@ class ExperimentManager:
                 # Continue with next fold rather than stopping entire experiment
         
         # Aggregate results across folds
+        print(f"📊 Total fold_results: {len(fold_results)}")
+        for i, result in enumerate(fold_results):
+            if 'error' in result:
+                print(f"   Fold {i}: ERROR - {result.get('error', 'unknown error')}")
+            else:
+                print(f"   Fold {i}: SUCCESS")
+        
         successful_folds = [r for r in fold_results if 'error' not in r]
+        print(f"📊 Successful folds: {len(successful_folds)}")
         
         if not successful_folds:
+            print("❌ No successful folds found!")
             raise RuntimeError("All CV folds failed")
         
         # Calculate summary metrics
