@@ -352,6 +352,7 @@ class DidISayThisDataset(Dataset):
             'negative_idx': neg_idx,
             'metadata': {
                 'sentence_key': sentence.get_sentence_key(),
+                'character_name': false_speaker.normalized_name,  # Add consistent character_name key
                 'actual_speaker': sentence.speaker.normalized_name,
                 'false_speaker': false_speaker.normalized_name,
                 'case_id': sentence.case_id,
@@ -390,21 +391,6 @@ class DidISayThisDataset(Dataset):
             return_tensors='pt'
         )
         
-        # Debug metadata access
-        try:
-            metadata = example['metadata']
-            # Check if 'character_name' key exists
-            if 'character_name' in metadata:
-                char_name = metadata['character_name']
-                if char_name is None:
-                    logger.warning(f"Dataset __getitem__ idx={idx}: character_name is None in metadata")
-            else:
-                logger.warning(f"Dataset __getitem__ idx={idx}: 'character_name' key missing from metadata. Keys: {list(metadata.keys())}")
-        except Exception as meta_e:
-            logger.error(f"Dataset __getitem__ idx={idx}: Error accessing metadata: {meta_e}")
-            logger.error(f"Example keys: {list(example.keys()) if isinstance(example, dict) else 'not a dict'}")
-            raise
-        
         result = {
             'input_ids': encoding['input_ids'].squeeze(0),
             'attention_mask': encoding['attention_mask'].squeeze(0),
@@ -412,7 +398,7 @@ class DidISayThisDataset(Dataset):
             'label': torch.tensor(example['label'], dtype=torch.float),
             'temporal_position': torch.tensor(example['temporal_position'], dtype=torch.long),
             'pair_id': torch.tensor(example['pair_id'], dtype=torch.long),
-            'metadata': metadata
+            'metadata': example['metadata']
         }
         
         return result
