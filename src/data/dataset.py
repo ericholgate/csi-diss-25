@@ -201,6 +201,21 @@ class DidISayThisDataset(Dataset):
         
         return character_to_id, id_to_character
 
+    def _build_character_name_lookup(self) -> Dict[str, int]:
+        """Build character name to ID lookup for mentioned character detection."""
+        name_to_id = {}
+        
+        for episode in self.episodes:
+            for character in episode.characters:
+                char_id = character.get_unique_id(self.character_mode)
+                if char_id in self.character_to_id:
+                    char_idx = self.character_to_id[char_id]
+                    # Add both raw and normalized names as keys
+                    name_to_id[character.raw_name.lower()] = char_idx
+                    name_to_id[character.normalized_name.lower()] = char_idx
+        
+        return name_to_id
+
     def _generate_examples(self) -> List[Dict[str, Any]]:
         """Generate temporally-aligned positive and negative examples for training."""
         examples = []
@@ -261,6 +276,9 @@ class DidISayThisDataset(Dataset):
                                 global_position: int,
                                 pair_id: int) -> Dict[str, Any]:
         """Create a positive example (character actually said the sentence)."""
+        if sentence.speaker is None:
+            raise ValueError(f"Sentence has no speaker: {sentence.get_sentence_key()}")
+        
         char_id = sentence.speaker.get_unique_id(self.character_mode)
         speaker_id = self.character_to_id[char_id]
         
