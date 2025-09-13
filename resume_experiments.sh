@@ -124,7 +124,7 @@ if [[ ! $REPLY =~ ^[Yy]$ ]]; then
 fi
 
 # Source the experiment running function from run_experiments.sh
-source <(grep -A 50 "run_experiment()" run_experiments.sh | head -n 51)
+source <(sed -n '/^run_experiment()/,/^}/p' run_experiments.sh)
 
 echo
 echo "Starting experiments..."

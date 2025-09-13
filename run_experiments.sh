@@ -56,9 +56,14 @@ run_experiment() {
     local script_content="
 import sys
 import os
-# Add src directory to Python path
-src_path = os.path.join(os.getcwd(), 'src')
-sys.path.insert(0, src_path)
+# Set up Python path for absolute imports
+project_root = os.getcwd()
+src_path = os.path.join(project_root, 'src')
+if src_path not in sys.path:
+    sys.path.insert(0, src_path)
+
+# Change to project root directory 
+os.chdir(project_root)
 
 from pathlib import Path
 from data.dataset import DidISayThisDataset
