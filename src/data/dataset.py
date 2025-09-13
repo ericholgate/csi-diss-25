@@ -279,6 +279,10 @@ class DidISayThisDataset(Dataset):
         if sentence.speaker is None:
             raise ValueError(f"Sentence has no speaker: {sentence.get_sentence_key()}")
         
+        # Additional safety check for character attributes
+        if not hasattr(sentence.speaker, 'normalized_name') or sentence.speaker.normalized_name is None:
+            raise ValueError(f"Sentence speaker missing normalized_name: {sentence.get_sentence_key()}")
+        
         char_id = sentence.speaker.get_unique_id(self.character_mode)
         speaker_id = self.character_to_id[char_id]
         
@@ -307,6 +311,15 @@ class DidISayThisDataset(Dataset):
                                 pair_id: int,
                                 neg_idx: int = 0) -> Optional[Dict[str, Any]]:
         """Create a negative example (different character, same sentence)."""
+        # Safety check for sentence speaker
+        if sentence.speaker is None:
+            logger.warning(f"Skipping negative example - sentence has no speaker: {sentence.get_sentence_key()}")
+            return None
+        
+        if not hasattr(sentence.speaker, 'normalized_name') or sentence.speaker.normalized_name is None:
+            logger.warning(f"Skipping negative example - speaker missing normalized_name: {sentence.get_sentence_key()}")
+            return None
+        
         # Sample a different character from the same episode (weighted by frequency)
         exclude_chars = {sentence.speaker}
         sampled_chars = episode.sample_characters_by_frequency(
@@ -319,6 +332,12 @@ class DidISayThisDataset(Dataset):
             return None
         
         false_speaker = sampled_chars[0]
+        
+        # Safety check for false speaker
+        if not hasattr(false_speaker, 'normalized_name') or false_speaker.normalized_name is None:
+            logger.warning(f"Skipping negative example - false speaker missing normalized_name")
+            return None
+        
         char_id = false_speaker.get_unique_id(self.character_mode)
         false_speaker_id = self.character_to_id[char_id]
         
