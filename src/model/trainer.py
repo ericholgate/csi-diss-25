@@ -407,8 +407,32 @@ class DidISayThisTrainer:
                 'true_label': int(labels_np[i]),
                 'loss': float(loss.item()),
                 'temporal_position': batch['temporal_position'][i].item() if 'temporal_position' in batch else -1,
-                'example_type': batch.get('metadata', [{}] * len(labels))[i].get('example_type', 'unknown'),
+                'example_type': self._get_metadata_field(batch, i, 'example_type', 'unknown'),
             })
+
+    def _get_metadata_field(self, batch, index: int, field_name: str, default_value):
+        """Safely extract a field from batch metadata at given index."""
+        try:
+            metadata = batch.get('metadata')
+            if metadata is None:
+                return default_value
+            
+            # Handle different metadata structures that PyTorch collate might create
+            if isinstance(metadata, list):
+                # List of dictionaries (expected structure)
+                if index < len(metadata) and isinstance(metadata[index], dict):
+                    return metadata[index].get(field_name, default_value)
+            elif isinstance(metadata, dict):
+                # Dictionary with field names as keys and lists as values
+                if field_name in metadata:
+                    field_data = metadata[field_name]
+                    if hasattr(field_data, '__getitem__') and index < len(field_data):
+                        return field_data[index]
+            
+            return default_value
+        except Exception:
+            # Fallback to default if any error occurs
+            return default_value
 
     def save_prediction_logs(self, experiment_dir: Path) -> None:
         """Save prediction logs to CSV files."""
