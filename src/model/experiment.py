@@ -100,8 +100,8 @@ class ExperimentManager:
         hash_data = {
             'num_episodes': len(dataset.episodes),
             'character_mode': dataset.character_mode,
-            'killer_reveal_holdout': dataset.killer_reveal_holdout,
-            'holdout_percentage': dataset.holdout_percentage,
+            'holdout_killer_reveal': dataset._holdout_killer_reveal,
+            'killer_reveal_holdout_percentage': dataset._killer_reveal_holdout_percentage,
             'episode_ids': [ep.episode_id for ep in dataset.episodes]
         }
         
