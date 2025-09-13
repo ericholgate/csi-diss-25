@@ -139,23 +139,39 @@ class DidISayThisTrainer:
             experiment_dir.mkdir(parents=True, exist_ok=True)
         
         logger.info("Starting training...")
+        
+        # Performance optimizations
+        if torch.cuda.is_available():
+            torch.backends.cudnn.benchmark = True  # Optimize for consistent input sizes
+            logger.info("CUDA optimizations enabled")
+        else:
+            logger.info("Running on CPU - using CPU-optimized settings")
+            # CPU-specific optimizations
+            torch.set_num_threads(4)  # Limit threads to avoid overhead
+        
         start_time = time.time()
         
         # Create data loaders
+        # Optimize DataLoader for CPU training
+        num_workers = 2 if torch.cuda.is_available() else 0  # CPU training works best with 0 workers
+        batch_size = max(32, self.config.batch_size) if torch.cuda.is_available() else max(16, self.config.batch_size)
+        
         train_loader = DataLoader(
             self.train_dataset,
-            batch_size=self.config.batch_size,
+            batch_size=batch_size,
             shuffle=False,  # Maintain temporal order
-            num_workers=0  # CPU training
+            num_workers=num_workers,
+            pin_memory=torch.cuda.is_available(),  # Only useful with GPU
         )
         
         val_loader = None
         if self.val_dataset:
             val_loader = DataLoader(
                 self.val_dataset,
-                batch_size=self.config.batch_size,
+                batch_size=batch_size,
                 shuffle=False,
-                num_workers=0
+                num_workers=num_workers,
+                pin_memory=torch.cuda.is_available(),
             )
         
         # Training loop
@@ -245,8 +261,8 @@ class DidISayThisTrainer:
             if self.scheduler:
                 self.scheduler.step()
             
-            # Record individual predictions
-            if self.prediction_log is not None:
+            # Record individual predictions (sample every 10th batch for performance)
+            if self.prediction_log is not None and batch_idx % 10 == 0:
                 self._record_prediction(batch_idx, batch, logits, labels, loss)
             
             # Update metrics

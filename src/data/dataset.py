@@ -93,6 +93,10 @@ class DidISayThisDataset(Dataset):
         
         self.examples = self._generate_examples()
         
+        # Pre-tokenize all examples for performance
+        logger.info(f"Pre-tokenizing {len(self.examples)} examples...")
+        self._precompute_tokenization()
+        
         logger.info(f"Dataset initialized with {len(self.examples)} temporally-aligned examples, "
                    f"{len(self.character_to_id)} unique characters")
     
@@ -215,6 +219,24 @@ class DidISayThisDataset(Dataset):
                     name_to_id[character.normalized_name.lower()] = char_idx
         
         return name_to_id
+
+    def _precompute_tokenization(self):
+        """Pre-tokenize all examples to avoid repeated tokenization during training."""
+        from tqdm import tqdm
+        
+        for i, example in enumerate(tqdm(self.examples, desc="Tokenizing")):
+            # Tokenize the sentence
+            encoding = self.tokenizer(
+                example['sentence_text'],
+                truncation=True,
+                padding='max_length',
+                max_length=self.max_length,
+                return_tensors='pt'
+            )
+            
+            # Store tokenized data in the example
+            example['input_ids'] = encoding['input_ids'].squeeze(0)
+            example['attention_mask'] = encoding['attention_mask'].squeeze(0)
 
     def _generate_examples(self) -> List[Dict[str, Any]]:
         """Generate temporally-aligned positive and negative examples for training."""
@@ -382,18 +404,9 @@ class DidISayThisDataset(Dataset):
         """
         example = self.examples[idx]
         
-        # Tokenize the sentence
-        encoding = self.tokenizer(
-            example['sentence_text'],
-            truncation=True,
-            padding='max_length',
-            max_length=self.max_length,
-            return_tensors='pt'
-        )
-        
         result = {
-            'input_ids': encoding['input_ids'].squeeze(0),
-            'attention_mask': encoding['attention_mask'].squeeze(0),
+            'input_ids': example['input_ids'],  # Already tokenized
+            'attention_mask': example['attention_mask'],  # Already tokenized
             'character_id': torch.tensor(example['character_id'], dtype=torch.long),
             'label': torch.tensor(example['label'], dtype=torch.float),
             'temporal_position': torch.tensor(example['temporal_position'], dtype=torch.long),
