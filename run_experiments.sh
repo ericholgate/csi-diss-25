@@ -55,7 +55,11 @@ run_experiment() {
     # Create the Python script for this experiment
     local script_content="
 import sys
-sys.path.append('src')
+import os
+# Add src directory to Python path
+src_path = os.path.join(os.getcwd(), 'src')
+sys.path.insert(0, src_path)
+
 from pathlib import Path
 from data.dataset import DidISayThisDataset
 from model.architecture import DidISayThisModel, DidISayThisConfig
@@ -201,11 +205,12 @@ except Exception as e:
     sys.exit(1)
 "
     
-    # Write Python script to temp file
-    echo "$script_content" > "/tmp/exp_${session_name}.py"
+    # Write Python script to experiment logs directory
+    local script_file="experiment_logs/exp_${session_name}.py"
+    echo "$script_content" > "$script_file"
     
-    # Run the experiment
-    tmux send-keys -t "$session_name" "python /tmp/exp_${session_name}.py 2>&1 | tee experiment_logs/${exp_name}.log" Enter
+    # Run the experiment from project root
+    tmux send-keys -t "$session_name" "python $script_file 2>&1 | tee experiment_logs/${exp_name}.log" Enter
     
     echo "  → Experiment $exp_name started in tmux session: $session_name"
 }
