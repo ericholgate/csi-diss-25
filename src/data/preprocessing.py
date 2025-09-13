@@ -33,7 +33,7 @@ def normalize_character_name(raw_name: str) -> str:
         Normalized character name
     """
     if not raw_name or raw_name.lower() == 'none':
-        return raw_name
+        return None
     
     name = raw_name.strip()
     
@@ -99,6 +99,11 @@ def parse_episode_tsv(file_path: Path) -> Tuple[List[Sentence], List[Character]]
         
         # Create or get character
         normalized_name = normalize_character_name(speaker_name)
+        
+        # Additional safety check for normalized name
+        if normalized_name is None or not normalized_name.strip():
+            continue
+            
         char_key = f"{episode_id}:{normalized_name}"
         
         if char_key not in characters_seen:
