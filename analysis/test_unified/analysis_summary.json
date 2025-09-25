@@ -1,0 +1,16 @@
+{
+  "analysis_timestamp": "2025-09-14T17:37:18.919458",
+  "data_directory": "data/original",
+  "output_directory": "analysis/test_unified",
+  "character_modes": [
+    "episode-isolated"
+  ],
+  "key_findings": {
+    "episode-isolated": {
+      "best_baseline_model": {
+        "name": "N-gram Features",
+        "f1_score": 0.9954476479514416
+      }
+    }
+  }
+}
